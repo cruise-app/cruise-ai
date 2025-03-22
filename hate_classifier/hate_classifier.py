@@ -29,23 +29,25 @@ async def classify_transcript(input: Transcript):
 
     # print(get_display(arabic_reshaper.reshape(text)))
     print(text)
+    print()
 
+    # send the text to the Gemini API
     response = client.models.generate_content(
         model="gemini-2.0-flash", 
         # contents = f"Is \"{text}\" a hateful/curse word in Egyptian Arabic? Answer with 1 (Yes) or 0 (No)"
         contents = f"هل \"{get_display(arabic_reshaper.reshape(text))}\" كلمة كراهية أو شتيمة باللهجة المصرية؟ أجب بـ 1 (نعم) أو 0 (لا)"
     )
 
+    # send the text to the Cohere API
     response_co = co.chat(
-    model="command-r-plus-08-2024",
-    messages=[{"role": "user",
-               "content": f"هل \"{get_display(arabic_reshaper.reshape(text))}\" كلمة كراهية أو شتيمة باللهجة المصرية؟ أجب بـ 1 (نعم) أو 0 (لا)" 
-            #    "content": f"Is \"{get_display(arabic_reshaper.reshape(text))}\" a hateful/curse word in Egyptian Arabic? Answer with 1 (Yes) or 0 (No)"
-               }],
-)
+        model="command-r-plus-08-2024",
+        messages=[{"role": "user",
+                "content": f"هل \"{get_display(arabic_reshaper.reshape(text))}\" كلمة كراهية أو شتيمة باللهجة المصرية؟ أجب بـ 1 (نعم) أو 0 (لا)" 
+                #    "content": f"Is \"{get_display(arabic_reshaper.reshape(text))}\" a hateful/curse word in Egyptian Arabic? Answer with 1 (Yes) or 0 (No)"
+                }],
+    )
 
     print("from gemini: ", response.text)
-    
     print("from cohere: ", response_co.message.content[0].text)
 
 # Command run: uvicorn hate_classifier:app --reload

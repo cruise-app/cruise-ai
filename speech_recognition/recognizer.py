@@ -37,7 +37,7 @@ def get_audio_stream(youtube_url):
 full_transcript = []
 buffer = []  # Temporary buffer the words until a full sentence is formed
 
-def convert_to_RTL(msg):
+def aggregate_and_format(msg):
 
     # Extract transcript text
     transcript_text = msg["metadata"]["transcript"]
@@ -52,33 +52,32 @@ def convert_to_RTL(msg):
 
         # Reverse the buffer to get the correct order of the words
         # and join the words to form a sentence
-        transcripted_text = " ".join(buffer[::-1])
+        transcript_text = " ".join(buffer[::-1])
 
         # Add timestamp
-        timed_transcripted_text = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {" ".join(buffer[::-1])}"
+        timed_transcript_text = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {transcript_text}"
 
         # Print transcript with timestamp
-        print(timed_transcripted_text)
+        print(timed_transcript_text)
 
         # Append transcript with timestamp to list
-        full_transcript.append(timed_transcripted_text)
+        full_transcript.append(timed_transcript_text)
 
         # Clear the buffer for the next sentence
         buffer.clear()
 
-        return transcripted_text
+        return transcript_text
 
 def send_transcript_to_classifier(transcript):
 
     # Convert to RTL format and send to classifier
-    timed_transcripted_text = convert_to_RTL(transcript)
+    transcript_text = aggregate_and_format(transcript)
 
     # Send the transcript to the classifier. 
     # If the transcript is None, this means the sentence is not completed yet. So will not send it
-    if timed_transcripted_text is not None:
-
+    if transcript_text is not None:
         try:
-            response = requests.post("http://127.0.0.1:8000/classify", json={"transcript": timed_transcripted_text})
+            response = requests.post("http://127.0.0.1:8000/classify", json={"transcript": transcript_text})
         except requests.exceptions.RequestException as e:
             print(e)
 

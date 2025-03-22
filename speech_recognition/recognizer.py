@@ -20,8 +20,9 @@ secrets = dotenv_values(".env")
 
 # The raw input audio stream
 # it will be a few seconds ahead of the actual Video
-youtube_url = "https://youtu.be/0b5DWgZNifQ" # non hate
-# youtube_url = "https://www.youtube.com/watch?v=jucMfhKJ0uY" # hate
+# youtube_url = "https://youtu.be/0b5DWgZNifQ" # non hate.  elshater
+# youtube_url = "https://youtu.be/DSUrjFF85J4" # non hate. legends
+youtube_url = "https://www.youtube.com/watch?v=jucMfhKJ0uY" # hate. bahgat saber
 
 def get_audio_stream(youtube_url):
     ydl_opts = {
@@ -34,6 +35,8 @@ def get_audio_stream(youtube_url):
         return urlopen(info['url']) if 'url' in info else None
 
 full_transcript = []
+buffer = []  # Temporary buffer the words until a full sentence is formed
+
 def convert_to_RTL(msg):
 
     # Extract transcript text
@@ -42,23 +45,42 @@ def convert_to_RTL(msg):
     # Reshape Arabic text for proper display. convert to RTL format (get_display)
     rtl_text = get_display(arabic_reshaper.reshape(transcript_text))
 
-    timed_transcripted_text = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {rtl_text}"
+    buffer.append(rtl_text)
 
-    # Print transcript with timestamp
-    print(timed_transcripted_text)
+    # Check if the current transcript contains a ending punctuation (check if the sentence is completed)
+    if any(punct in rtl_text for punct in ['.', '؟', '!', '…']):
 
-    # Append transcript with timestamp to list
-    full_transcript.append(timed_transcripted_text)
+        # Reverse the buffer to get the correct order of the words
+        # and join the words to form a sentence
+        transcripted_text = " ".join(buffer[::-1])
 
-    return timed_transcripted_text
+        # Add timestamp
+        timed_transcripted_text = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {" ".join(buffer[::-1])}"
+
+        # Print transcript with timestamp
+        print(timed_transcripted_text)
+
+        # Append transcript with timestamp to list
+        full_transcript.append(timed_transcripted_text)
+
+        # Clear the buffer for the next sentence
+        buffer.clear()
+
+        return transcripted_text
 
 def send_transcript_to_classifier(transcript):
 
     # Convert to RTL format and send to classifier
     timed_transcripted_text = convert_to_RTL(transcript)
 
-    # response = requests.post("http://127.0.0.1:8000/classify", json={"transcript": timed_transcripted_text})
-    
+    # Send the transcript to the classifier. 
+    # If the transcript is None, this means the sentence is not completed yet. So will not send it
+    if timed_transcripted_text is not None:
+
+        try:
+            response = requests.post("http://127.0.0.1:8000/classify", json={"transcript": timed_transcripted_text})
+        except requests.exceptions.RequestException as e:
+            print(e)
 
 # Create a transcription client
 ws = speechmatics.client.WebsocketClient(
@@ -67,17 +89,6 @@ ws = speechmatics.client.WebsocketClient(
         auth_token=secrets["SPEECHMATICS_API_KEY"],
     )
 )
-
-# # Register the event handler for full transcript
-# # listens for a event from event_name and triggers a function print_transcript
-# ws.add_event_handler(
-#     event_name=speechmatics.models.ServerMessageType.AddTranscript,
-#     event_handler=send_transcript_to_classifier,
-# )
-
-# Define an event handler to print the full transcript
-def print_transcript(msg):
-    print(f"[FULL] {convert_to_RTL(msg)}")
 
 # Register the event handler for full transcript
 ws.add_event_handler(

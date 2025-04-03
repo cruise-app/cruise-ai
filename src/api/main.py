@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 import logging
 from ..core.chatbot import CruiseChatbot
-from ..services.mock_backend import MockBackend
+from ..core.real_backend import RealBackend
 from ..utils.notifications import NotificationService
 
 # Configure logging
@@ -34,7 +34,7 @@ app.add_middleware(
 # Initialize dependencies
 def get_chatbot():
     try:
-        backend = MockBackend()
+        backend = RealBackend()
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
             logger.error("OpenAI API key not found in environment variables")
@@ -173,7 +173,7 @@ async def get_carpool_opportunities(
 @app.post("/test-notification")
 async def test_notification(
     request: NotificationRequest,
-    notification_service: NotificationService = Depends(lambda: NotificationService(MockBackend()))
+    notification_service: NotificationService = Depends(lambda: NotificationService(RealBackend()))
 ) -> Dict[str, Any]:
     """Test endpoint for sending notifications."""
     try:

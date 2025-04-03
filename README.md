@@ -11,6 +11,7 @@ An AI-powered customer support chatbot for Cruise, featuring multilingual suppor
 - 🗺️ Location services with Google Maps integration
 - 🔄 Automatic escalation to human support
 - 📊 Analytics and monitoring
+- 🔌 Direct integration with Cruise's backend API
 
 ## Architecture
 
@@ -22,9 +23,8 @@ src/
 ├── core/               # Core business logic
 │   ├── interfaces/     # Interface definitions
 │   ├── chatbot.py     # Main chatbot implementation
-│   └── backend.py     # Backend service interface
+│   └── real_backend.py # Real Cruise backend integration
 ├── services/          # External service integrations
-│   └── mock_backend.py # Mock implementation for testing
 └── utils/             # Utility functions
     ├── notifications.py # Notification service
     ├── location.py    # Location services
@@ -56,9 +56,41 @@ cp .env.example .env
 # Edit .env with your API keys and configurations
 ```
 
-## Testing
+## Integration with Cruise App
 
-### Starting the Server
+### Backend Integration
+
+The chatbot is now fully integrated with Cruise's backend API. To use it:
+
+1. Set up your Cruise API credentials:
+```bash
+CRUISE_API_KEY=your_cruise_api_key
+CRUISE_API_BASE_URL=https://api.cruise.com/v1  # or your specific environment URL
+```
+
+2. The chatbot will automatically:
+   - Authenticate with Cruise's API
+   - Handle user profiles and ride history
+   - Manage bookings and cancellations
+   - Process carpool matches
+   - Handle user preferences
+   - Manage support escalations
+
+### API Endpoints
+
+The following endpoints are available for integration:
+
+- `GET /`: Health check
+- `POST /chat`: Process chat messages
+- `POST /book-ride`: Create a new ride booking
+- `POST /cancel-ride/{ride_id}`: Cancel an existing ride
+- `GET /recommendations/{user_id}`: Get personalized recommendations
+- `GET /safety-check/{user_id}`: Perform safety checks
+- `GET /carpool-opportunities/{user_id}`: Get carpool opportunities
+- `POST /test-notification`: Test notification system
+- `GET /docs`: Swagger UI documentation
+
+### Testing
 
 1. Start the FastAPI server:
 ```bash
@@ -67,72 +99,11 @@ uvicorn src.api.main:app --reload --port 8001
 
 2. Open the Swagger UI at http://127.0.0.1:8001/docs
 
-### Testing the Chatbot
-
-1. Use the `/chat` endpoint with a POST request:
-```json
-{
-    "message": "I need a ride",
-    "user_id": "test_user",
-    "language": "en"
-}
-```
-
-2. Test different scenarios:
-   - Happy messages: "I am very happy with the service"
-   - Negative messages: "This is terrible, I hate it"
-   - Neutral messages: "I am feeling a bit disappointed"
-
-### Testing Notifications
-
-1. Use the `/test-notification` endpoint with a POST request:
-```json
-{
-    "user_id": "test_user",
-    "title": "Test Notification",
-    "body": "This is a test notification",
-    "data": {
-        "type": "test"
-    }
-}
-```
-
-2. Available test users:
-   - "test_user" (token: mock_device_token_123)
-   - "john_doe" (token: mock_device_token_456)
-   - "zeyad" (token: mock_device_token_789)
-
-### Testing Ride Booking
-
-1. Use the `/book-ride` endpoint with a POST request:
-```json
-{
-    "pickup": {
-        "lat": 25.2048,
-        "lng": 55.2708
-    },
-    "dropoff": {
-        "lat": 25.2048,
-        "lng": 55.2708
-    },
-    "vehicle_type": "sedan",
-    "scheduled_time": "2024-03-30T10:00:00Z"
-}
-```
-
-2. The system will:
-   - Validate the locations
-   - Create a booking
-   - Start monitoring for updates
-   - Send notifications for status changes
-
-## API Endpoints
-
-- `GET /`: Health check
-- `POST /chat`: Process chat messages
-- `POST /test-notification`: Test notification system
-- `POST /book-ride`: Create a new ride booking
-- `GET /docs`: Swagger UI documentation
+3. Test the integration:
+   - Use the `/chat` endpoint to test conversation flow
+   - Use `/book-ride` to test booking creation
+   - Use `/cancel-ride/{ride_id}` to test cancellation
+   - Use `/recommendations/{user_id}` to test personalized suggestions
 
 ## Environment Variables
 
@@ -141,8 +112,18 @@ Required environment variables:
 OPENAI_API_KEY=your_openai_api_key
 GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 CRUISE_API_KEY=your_cruise_api_key
+CRUISE_API_BASE_URL=https://api.cruise.com/v1
 FIREBASE_CREDENTIALS=path_to_firebase_credentials.json
 ```
+
+## Error Handling
+
+The system includes comprehensive error handling for:
+- API authentication failures
+- Network connectivity issues
+- Invalid requests
+- Rate limiting
+- Resource not found errors
 
 ## Contributing
 

@@ -1,21 +1,36 @@
-# Cruise Chatbot
+# 🤖 Cruise AI Chatbot
 
-An intelligent chatbot service for the Cruise ride-hailing platform.
+Welcome to the Cruise AI Chatbot! This intelligent chatbot service enhances the Cruise ride-hailing experience by providing instant, natural language support to our users.
 
-## Features
+## ✨ Features
 
-- Natural language processing for user queries
-- Integration with OpenAI's GPT model
-- Real-time conversation handling
-- Integration with other Cruise microservices
+- 💬 Natural language processing for user queries
+- 🧠 Powered by OpenAI's GPT model
+- 🌍 Multilingual support
+- 🔄 Real-time conversation handling
+- 🔌 Seamless integration with Cruise microservices
+- 📊 Analytics and monitoring
+- 🔔 Smart notifications
+- 🎯 Context-aware responses
 
-## Prerequisites
+## 🛠️ Tech Stack
+
+- **Backend**: Python with FastAPI
+- **AI**: OpenAI GPT
+- **Database**: MongoDB
+- **Testing**: Pytest
+- **API Documentation**: Swagger/OpenAPI
+
+## 🚀 Getting Started
+
+### Prerequisites
 
 - Python 3.8 or higher
 - OpenAI API key
+- MongoDB
 - Other Cruise microservices (car-rental, etc.)
 
-## Setup
+### Installation
 
 1. Clone the repository:
 ```bash
@@ -34,9 +49,10 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file:
-```env
-OPENAI_API_KEY=your_openai_api_key
+4. Set up environment variables:
+```bash
+cp .env.example .env
+# Edit .env with your configuration
 ```
 
 5. Start the service:
@@ -44,20 +60,80 @@ OPENAI_API_KEY=your_openai_api_key
 python chatbot.py
 ```
 
-## Testing
+## 📡 API Documentation
 
-Run tests:
-```bash
-pytest
+### Chat Endpoint
+```http
+POST /api/chat
+```
+Request Body:
+```json
+{
+  "message": "string",
+  "userId": "string",
+  "context": {
+    "language": "en",
+    "platform": "mobile"
+  }
+}
 ```
 
-## Integration
+### Health Check
+```http
+GET /health
+```
+
+## 🧪 Testing
+
+Run the test suite:
+```bash
+# Run all tests
+pytest
+
+# Run with coverage
+pytest --cov=src tests/
+
+# Run specific test file
+pytest tests/test_chatbot.py
+```
+
+## 📦 Project Structure
+
+```
+cruise-bot/
+├── src/
+│   ├── api/          # FastAPI endpoints
+│   │   └── chatbot.py   # Main chatbot implementation
+│   ├── services/     # External service integrations
+│   └── utils/        # Utility functions
+├── tests/            # Test files
+└── docs/             # Documentation
+```
+
+## 🔌 Integration
 
 The chatbot integrates with other Cruise microservices:
-- Car Rental Service
-- User Service
-- Payment Service
+- 🚗 Car Rental Service
+- 👤 User Service
+- 💳 Payment Service
+- 📱 Mobile App
 
-## License
+## 🤝 Contributing
 
-MIT 
+We welcome contributions! Here's how you can help:
+
+1. Fork the repo
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Thanks to all our contributors
+- Powered by OpenAI's amazing technology
+- Built with ❤️ by the Cruise team 

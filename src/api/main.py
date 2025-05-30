@@ -1,10 +1,12 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Dict, Any, List, Optional
 import os
 from dotenv import load_dotenv
 import logging
+import traceback
 from ..core.chatbot import CruiseChatbot
 from ..core.real_backend import RealBackend
 from ..utils.notifications import NotificationService
@@ -22,14 +24,24 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add CORS middleware
+# Add CORS middleware with more permissive settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
+
+# Add global exception handler
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Global error handler caught: {str(exc)}")
+    logger.error(traceback.format_exc())
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
 # Initialize dependencies
 def get_chatbot():
@@ -42,6 +54,7 @@ def get_chatbot():
         return CruiseChatbot(backend, openai_api_key)
     except Exception as e:
         logger.error(f"Error initializing chatbot: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Failed to initialize chatbot: {str(e)}")
 
 # Pydantic models
@@ -51,8 +64,8 @@ class Message(BaseModel):
     language: str = "en"
 
 class RideDetails(BaseModel):
-    pickup: Dict[str, float]
-    dropoff: Dict[str, float]
+    pickup: Dict[str, Any]
+    dropoff: Dict[str, Any]
     vehicle_type: Optional[str] = None
     scheduled_time: Optional[str] = None
 
@@ -82,20 +95,35 @@ async def chat(
     """Process a chat message and return a response."""
     try:
         logger.info(f"Processing chat message for user {message.user_id}")
+        
+        # Auto-detect Arabic if not specified
+        language = message.language
+        if language == "en" and any('\u0600' <= c <= '\u06FF' for c in message.message):
+            language = "ar"
+            logger.info(f"API detected Arabic language in message")
+        
         response = await chatbot.process_message(
             message.message,
             message.user_id,
-            message.language
+            language
         )
         return {"response": response}
     except Exception as e:
         logger.error(f"Error processing chat message: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(traceback.format_exc())
+        
+        # Return error in appropriate language
+        if any('\u0600' <= c <= '\u06FF' for c in message.message):
+            error_msg = "عذراً، حدث خطأ أثناء معالجة رسالتك. يرجى المحاولة مرة أخرى."
+        else:
+            error_msg = f"Sorry, an error occurred: {str(e)}"
+            
+        raise HTTPException(status_code=500, detail=error_msg)
 
 @app.post("/book-ride")
 async def book_ride(
-    user_id: str,
     ride_details: RideDetails,
+    user_id: str,
     chatbot: CruiseChatbot = Depends(get_chatbot)
 ) -> BookingResponse:
     """Book a new ride."""
@@ -109,6 +137,7 @@ async def book_ride(
         )
     except Exception as e:
         logger.error(f"Error booking ride: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/cancel-ride/{ride_id}")
@@ -128,6 +157,7 @@ async def cancel_ride(
         )
     except Exception as e:
         logger.error(f"Error canceling ride: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/recommendations/{user_id}")
@@ -141,6 +171,7 @@ async def get_recommendations(
         return await chatbot.get_recommendations(user_id)
     except Exception as e:
         logger.error(f"Error getting recommendations: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/safety-check/{user_id}")
@@ -154,6 +185,7 @@ async def safety_check(
         return await chatbot.perform_safety_check(user_id)
     except Exception as e:
         logger.error(f"Error performing safety check: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/carpool-opportunities/{user_id}")
@@ -167,6 +199,7 @@ async def get_carpool_opportunities(
         return await chatbot.get_carpool_opportunities(user_id)
     except Exception as e:
         logger.error(f"Error getting carpool opportunities: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
 
 # Add new endpoint for testing notifications
@@ -187,7 +220,14 @@ async def test_notification(
         return {"status": "success", "result": result}
     except Exception as e:
         logger.error(f"Error sending notification: {str(e)}")
+        logger.error(traceback.format_exc())
         raise HTTPException(status_code=500, detail=str(e))
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Check if the API is healthy."""
+    return {"status": "healthy"}
 
 if __name__ == "__main__":
     import uvicorn

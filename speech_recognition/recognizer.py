@@ -1,124 +1,161 @@
-# some speech to text alternatives:
-# https://portal.speechmatics.com/settings/api-keyss
-# https://arabot.io/en
-# https://tryhamsa.com/
+# # some speech to text alternatives:
+# # https://portal.speechmatics.com/settings/api-keyss
+# # https://arabot.io/en
+# # https://tryhamsa.com/
 
-import speechmatics
+from speechmatics.batch_client import BatchClient
+from speechmatics.models import ConnectionSettings
 from httpx import HTTPStatusError
 import requests
-from urllib.request import urlopen
-import sys
-import json
 import arabic_reshaper
 from bidi.algorithm import get_display
 from dotenv import dotenv_values
 from datetime import datetime
-import yt_dlp
+from fastapi import FastAPI, File, UploadFile, Form
+import shutil
+import os
+import traceback
+from supabase import create_client
+from pymongo.mongo_client import MongoClient
+from pymongo.server_api import ServerApi
 
-# Get API key
+app = FastAPI()
+
+# Get secrets
 secrets = dotenv_values(".env")
-
-# The raw input audio stream
-# it will be a few seconds ahead of the actual Video
-# youtube_url = "https://youtu.be/0b5DWgZNifQ" # non hate.  elshater
-# youtube_url = "https://youtu.be/DSUrjFF85J4" # non hate. legends
-youtube_url = "https://www.youtube.com/watch?v=jucMfhKJ0uY" # hate. bahgat saber
-
-def get_audio_stream(youtube_url):
-    ydl_opts = {
-        'format': 'bestaudio',
-        'quiet': True
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(youtube_url, download=False)
-        return urlopen(info['url']) if 'url' in info else None
-
-full_transcript = []
-buffer = []  # Temporary buffer the words until a full sentence is formed
+PATH_TO_FILE = "audio_input/ride_partition.mp3"
 
 def aggregate_and_format(msg):
 
-    # Extract transcript text
-    transcript_text = msg["metadata"]["transcript"]
-
+    buffer = []    # Temporary buffer the words until a full sentence is formed
     # Reshape Arabic text for proper display. convert to RTL format (get_display)
-    rtl_text = get_display(arabic_reshaper.reshape(transcript_text))
+    rtl_text = get_display(arabic_reshaper.reshape(msg))
 
     buffer.append(rtl_text)
 
-    # Check if the current transcript contains a ending punctuation (check if the sentence is completed)
-    if any(punct in rtl_text for punct in ['.', '؟', '!', '…']):
+    # Reverse the buffer to get the correct order of the words
+    # and join the words to form a sentence
+    transcript_text = " ".join(buffer[::-1])
+    
+    buffer.clear()
 
-        # Reverse the buffer to get the correct order of the words
-        # and join the words to form a sentence
-        transcript_text = " ".join(buffer[::-1])
+    return transcript_text
 
-        # Add timestamp
-        timed_transcript_text = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {transcript_text}"
 
-        # Print transcript with timestamp
-        print(timed_transcript_text)
-
-        # Append transcript with timestamp to list
-        full_transcript.append(timed_transcript_text)
-
-        # Clear the buffer for the next sentence
-        buffer.clear()
-
-        return transcript_text
-
-def send_transcript_to_classifier(transcript):
-
-    # Convert to RTL format and send to classifier
-    transcript_text = aggregate_and_format(transcript)
-
-    # Send the transcript to the classifier. 
-    # If the transcript is None, this means the sentence is not completed yet. So will not send it
-    if transcript_text is not None:
-        try:
-            response = requests.post("http://127.0.0.1:8000/classify", json={"transcript": transcript_text})
-        except requests.exceptions.RequestException as e:
-            print(e)
-
-# Create a transcription client
-ws = speechmatics.client.WebsocketClient(
-    speechmatics.models.ConnectionSettings(
-        url=secrets["SPEECHMATICS_CONNECTION_URL"],
-        auth_token=secrets["SPEECHMATICS_API_KEY"],
-    )
+# Configure Speechmatics connection settings and parameters
+settings = ConnectionSettings(
+    url=secrets["SPEECHMATICS_CONNECTION_URL"],
+    auth_token=secrets["SPEECHMATICS_API_KEY"],
 )
+conf = {
+    "type": "transcription",
+    "transcription_config": {
+        "language": "ar"
+    }
+}
 
-# Register the event handler for full transcript
-ws.add_event_handler(
-    event_name=speechmatics.models.ServerMessageType.AddTranscript,
-    event_handler=send_transcript_to_classifier,
+# Initialize Supabase client
+supabase = create_client(secrets["SUPABASE_URL"], secrets["SUPABASE_API_KEY"])
+
+# Initialize MongoDB client
+mongo_client = MongoClient(
+    secrets["MONGODB_URL"],
+    server_api=ServerApi('1')
 )
+collection = mongo_client['cruise-ai']['hate-detections']
 
-settings = speechmatics.models.AudioSettings()
 
-# Define transcription parameters
-conf = speechmatics.models.TranscriptionConfig(
-    language="ar",
-    enable_partials=True,
-    max_delay=5,
-    enable_entities=True
-)
+@app.get("/")
+async def root():
+    return {"recognizer": "200 OK"}
 
-try:
-    ws.run_synchronously(get_audio_stream(youtube_url), conf, settings)
-except KeyboardInterrupt:
+@app.post("/transcript-audio/")
+async def transcript_audio(file: UploadFile = File(...), trip_id: str = Form(...)):
+    try:
 
-    with open("Full_Transcript.txt", "w", encoding="utf-8") as f:
+        # Save the uploaded file
+        file_location = f"audio_input/ride_partition.mp3"
+        os.makedirs("audio_input", exist_ok=True)
+        
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        print(f"File saved to {file_location}")
 
-        for text in full_transcript:
-            # Apply reshaper and RTL formatting
-            rtl_text = get_display(arabic_reshaper.reshape(text)) 
-            f.write(rtl_text + "\n")
+        # Begin transcription
+        with BatchClient(settings) as client:
+            try:
+                job_id = client.submit_job(audio=PATH_TO_FILE, transcription_config=conf)
+                print(f'job {job_id} submitted to Speechmatics')
 
-except HTTPStatusError as e:
+                transcript = client.wait_for_completion(job_id, transcription_format='txt')
 
-    if e.response.status_code == 401:
-        print('Invalid API key - Check your API_KEY at the top of the code!')
-    else:
-        raise e
+                rtl_transcript = aggregate_and_format(transcript)
+                print(rtl_transcript)
+
+            except HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    print('Invalid API key')
+                elif e.response.status_code == 400:
+                    print(e.response.json()['detail'])
+                else:
+                    raise e
+            except Exception as e:
+                print(f'An error occurred: {e}')
+                traceback.print_exc()
+            finally:
+                client.close()
+                
+        # Send the transcript to the classifier
+        hate_response = requests.post(
+            "http://127.0.0.1:5000/classify", 
+            json={"transcript": rtl_transcript, 
+                   "trip_id": trip_id}
+            )
+        print("Hate classification response:", hate_response.json())
+        
+        time_stamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Store the audio into Supabase
+        with open("audio_input/ride_partition.mp3", "rb") as f:
+            
+            sb_response = (
+                supabase.storage
+                .from_("ride-audio-bucket")
+                .upload(
+                    file = f,
+                    path = f"trip_{trip_id}/ride_partition_{time_stamp}.mp3",
+                    file_options = {"upsert": "false"}
+                )
+            )
+        print("Audio uploaded to:", sb_response.path)
+
+        # Get the public URL of the uploaded audio
+        audio_url = (
+            supabase.storage
+            .from_("ride-audio-bucket")
+            .create_signed_url(
+                f"trip_{trip_id}/ride_partition_{time_stamp}.mp3",
+                604800
+            )
+        )
+        print("Got audio public URL")
+        
+        # Store metadata in MongoDB
+        metadata = {
+            "trip_id": trip_id,
+            "transcript": get_display(arabic_reshaper.reshape(rtl_transcript)),
+            "hate_classification": hate_response.json(),
+            "audio_url": audio_url["signedURL"],
+            "timestamp": datetime.now().isoformat()
+        }
+        collection.insert_one(metadata)
+        print("Metadata stored in MongoDB")
+    
+    except Exception as e:
+        traceback.print_exc()
+        
+    finally:
+        # Delete up the uploaded audio
+        if os.path.exists(file_location):
+            os.remove(file_location)
+            
+# uvicorn recognizer:app --port 8000 --reload

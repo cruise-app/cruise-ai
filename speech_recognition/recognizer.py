@@ -70,8 +70,12 @@ async def root():
     return {"recognizer": "200 OK"}
 
 @app.post("/transcript-audio/")
-async def transcript_audio(file: UploadFile = File(...), trip_id: str = Form(...)):
+async def transcript_audio(file: UploadFile = File(...), trip_id: str = Form(...), user_id: str = Form(...)):
     try:
+
+        print("Received file:", file.filename)
+        print("Trip ID:", trip_id)
+        print("User ID:", user_id)
 
         # Save the uploaded file
         file_location = f"audio_input/ride_partition.mp3"
@@ -109,7 +113,8 @@ async def transcript_audio(file: UploadFile = File(...), trip_id: str = Form(...
         hate_response = requests.post(
             "http://127.0.0.1:5000/classify", 
             json={"transcript": rtl_transcript, 
-                   "trip_id": trip_id}
+                   "trip_id": trip_id, 
+                   "user_id": user_id}
             )
         print("Hate classification response:", hate_response.json())
         

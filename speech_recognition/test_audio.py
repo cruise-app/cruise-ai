@@ -6,6 +6,6 @@ audio_path = "test-bad.m4a"
 
 with open(audio_path, "rb") as audio_file:
     files = {"file": (audio_path, audio_file, "audio/mpeg")}
-    response = requests.post(url, files=files, data={"trip_id": "987"})
+    response = requests.post(url, files=files, data={"trip_id": "987", "user_id": "12345"})
 
 print(response.json())

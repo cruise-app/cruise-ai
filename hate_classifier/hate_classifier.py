@@ -4,17 +4,26 @@ import arabic_reshaper
 from bidi.algorithm import get_display
 from dotenv import dotenv_values
 from google import genai
-import requests
+from notificationapi_python_server_sdk import notificationapi
+import base64
+# import requests
+
 
 secrets = dotenv_values(".env")
 
 client = genai.Client(api_key=secrets["Gemini_API_KEY"])
 
+notificationapi.init(
+    secrets["NOTIFICATIONS_ID"],
+    secrets["NOTIFICATIONS_API_KEY"]
+)
+
 app = FastAPI()
 
-class Transcript(BaseModel):
+class payload(BaseModel):
     trip_id: str
     transcript: str
+    user_id: str
 
 # To test the health of the API
 @app.get("/")
@@ -23,10 +32,11 @@ async def root():
 
 # To classify the hateful/curse words in the transcript
 @app.post("/classify")
-async def classify_transcript(input: Transcript):
-    data = input.model_dump()
-    text = data["transcript"]
-    trip_id = data["trip_id"]
+async def classify_transcript(payload: payload):
+    input = payload.model_dump()
+    text = input["transcript"]
+    trip_id = input["trip_id"]
+    user_id = input["user_id"]
 
     print(text)
     # print(get_display(arabic_reshaper.reshape(text)))
@@ -43,12 +53,45 @@ async def classify_transcript(input: Transcript):
     # Send alert if hate speech detected
     if response == "1":    
         
-        map_link = f"https://google.com"
-        alert_text = f"Hello this is CRUISE's AI hate detector\n\ىYour trusted contact is sending alerts to you\n\ىTranscript: {get_display(arabic_reshaper.reshape(text))}\n{map_link}"
+        # map_link = f"https://google.com"
+        # alert_text = f"Hello this is CRUISE's AI hate detector\n\nYour trusted contact is sending alerts to you\n\nTranscript: {get_display(arabic_reshaper.reshape(text))}\n{map_link}"
         
-        alert_response = requests.post(f"https://api.callmebot.com/whatsapp.php?phone=201069885999&text={alert_text}&apikey=4567627")
-        print("Alert sent")
+        # alert_response = requests.post(f"https://api.callmebot.com/whatsapp.php?phone=201069885999&text={alert_text}&apikey=4567627")
+        # print("Alert sent")
+        
+        alert_response = await send_alert(text, trip_id, user_id)
+        print("Alert sent via NotificationAPI")
     
     return response
+
+@app.post("/send-alert")
+async def send_alert(text: str, trip_id: str, user_id: str):
+    
+    # data = input.model_dump()
+    # text = data["transcript"]
+    # trip_id = data["trip_id"]
+
+    # reshaped_text = get_display(arabic_reshaper.reshape(transcript))
+
+    try:
+        # Async send using NotificationAPI
+        response = await notificationapi.send({
+            "type": "alert",
+            "to": {
+                "email": "alihisham26m@gmail.com",
+                "number": "+201069885999"
+            },
+            "parameters": {
+                "name": "Shahd",
+                "transcript": get_display(arabic_reshaper.reshape(text)),
+                "map_link": f"http://127.0.0.1:5500/index.html?user_id={user_id}",
+            }
+        })
+        print("NotificationAPI response:", response)
+    
+    except Exception as e:
+        print("Alert failed:", e)
+    
+    return {"status": "Alert sent"}
 
 # Command run: uvicorn hate_classifier:app --port 5000 --reload

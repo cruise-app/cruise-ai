@@ -1,8 +1,8 @@
 arabic_reshaper==3.0.0
-fastapi==0.115.12
+fastapi==0.115.14
 httpx==0.28.1
-pymongo==4.13.0
-python-dotenv==1.1.0
+pymongo==4.13.2
+python-dotenv==1.1.1
 Requests==2.32.4
 speechmatics_python==3.0.2
-supabase==2.15.2
+supabase==2.16.0

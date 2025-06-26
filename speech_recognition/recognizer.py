@@ -73,10 +73,6 @@ async def root():
 async def transcript_audio(file: UploadFile = File(...), trip_id: str = Form(...), user_id: str = Form(...)):
     try:
 
-        print("Received file:", file.filename)
-        print("Trip ID:", trip_id)
-        print("User ID:", user_id)
-
         # Save the uploaded file
         file_location = f"audio_input/ride_partition.mp3"
         os.makedirs("audio_input", exist_ok=True)

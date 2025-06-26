@@ -5,9 +5,7 @@ from bidi.algorithm import get_display
 from dotenv import dotenv_values
 from google import genai
 from notificationapi_python_server_sdk import notificationapi
-import base64
 # import requests
-
 
 secrets = dotenv_values(".env")
 
@@ -15,7 +13,8 @@ client = genai.Client(api_key=secrets["Gemini_API_KEY"])
 
 notificationapi.init(
     secrets["NOTIFICATIONS_ID"],
-    secrets["NOTIFICATIONS_API_KEY"]
+    secrets["NOTIFICATIONS_API_KEY"],
+    'https://api.eu.notificationapi.com'
 )
 
 app = FastAPI()
@@ -60,21 +59,15 @@ async def classify_transcript(payload: payload):
         # print("Alert sent")
         
         alert_response = await send_alert(text, trip_id, user_id)
-        print("Alert sent via NotificationAPI")
     
     return response
 
 @app.post("/send-alert")
 async def send_alert(text: str, trip_id: str, user_id: str):
     
-    # data = input.model_dump()
-    # text = data["transcript"]
-    # trip_id = data["trip_id"]
-
-    # reshaped_text = get_display(arabic_reshaper.reshape(transcript))
 
     try:
-        # Async send using NotificationAPI
+        # Send alert using NotificationAPI
         response = await notificationapi.send({
             "type": "alert",
             "to": {
@@ -84,7 +77,7 @@ async def send_alert(text: str, trip_id: str, user_id: str):
             "parameters": {
                 "name": "Shahd",
                 "transcript": get_display(arabic_reshaper.reshape(text)),
-                "map_link": f"http://127.0.0.1:5500/index.html?user_id={user_id}",
+                "map_link": f"https://ali26m.github.io/security-project/?user_id={user_id}",
             }
         })
         print("NotificationAPI response:", response)

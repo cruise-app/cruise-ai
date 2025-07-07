@@ -1,11 +1,10 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
 import arabic_reshaper
 from bidi.algorithm import get_display
 from dotenv import dotenv_values
 from google import genai
 from notificationapi_python_server_sdk import notificationapi
-# import requests
+import requests
 
 secrets = dotenv_values(".env")
 
@@ -19,11 +18,6 @@ notificationapi.init(
 
 app = FastAPI()
 
-class payload(BaseModel):
-    trip_id: str
-    transcript: str
-    user_id: str
-
 # To test the health of the API
 @app.get("/")
 async def root():
@@ -31,19 +25,15 @@ async def root():
 
 # To classify the hateful/curse words in the transcript
 @app.post("/classify")
-async def classify_transcript(payload: payload):
-    input = payload.model_dump()
-    text = input["transcript"]
-    trip_id = input["trip_id"]
-    user_id = input["user_id"]
+async def classify_transcript(text: str, trip_id: str, user_id: str):
 
-    print(text)
-    # print(get_display(arabic_reshaper.reshape(text)))
+    # print(text)
+    print(get_display(arabic_reshaper.reshape(text)))
 
     # send the text to the Gemini API
     response = client.models.generate_content(
         model="gemini-2.0-flash", 
-        contents = f"هل \"{get_display(arabic_reshaper.reshape(text))}\" كلمة كراهية أو شتيمة باللهجة المصرية؟ أجب بـ 1 (نعم) أو 0 (لا)"
+        contents = f"هل \"{text}\" كلمة كراهية أو شتيمة باللهجة المصرية؟ أجب بـ 1 (نعم) أو 0 (لا)"
     )
     
     response = response.text.strip()
@@ -52,13 +42,13 @@ async def classify_transcript(payload: payload):
     # Send alert if hate speech detected
     if response == "1":    
         
-        # map_link = f"https://google.com"
-        # alert_text = f"Hello this is CRUISE's AI hate detector\n\nYour trusted contact is sending alerts to you\n\nTranscript: {get_display(arabic_reshaper.reshape(text))}\n{map_link}"
+        alert_text = f"Hello this is CRUISE's AI hate detector\n\nYour trusted contact is sending alerts to you\n\nTranscript: {text}"
         
-        # alert_response = requests.post(f"https://api.callmebot.com/whatsapp.php?phone=201069885999&text={alert_text}&apikey=4567627")
+        alert_response = requests.post(f"https://api.callmebot.com/whatsapp.php?phone=201069885999&text={alert_text}&apikey=4567627")
         # print("Alert sent")
         
-        alert_response = await send_alert(text, trip_id, user_id)
+        # alert_response = await send_alert(text, trip_id, user_id)
+        # pass
     
     return response
 
@@ -77,7 +67,7 @@ async def send_alert(text: str, trip_id: str, user_id: str):
             "parameters": {
                 "name": "Shahd",
                 "transcript": get_display(arabic_reshaper.reshape(text)),
-                "map_link": f"https://ali26m.github.io/security-project/?user_id={user_id}",
+                "map_link": f"https://ali26m.github.io/security-project/",
             }
         })
         print("NotificationAPI response:", response)

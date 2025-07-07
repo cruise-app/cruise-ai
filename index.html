@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>User Tracker</title>
+  <title>Live User Tracker</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
   <style>
-    /* Base styles */
     body {
       background-color: #161616;
       color: white;
@@ -17,13 +17,10 @@
       flex-direction: column;
       align-items: center;
     }
-
     h2 {
       text-align: center;
       margin-top: 20px;
-      font-size: 1.5rem;
     }
-
     #map {
       height: 400px;
       width: 90%;
@@ -32,7 +29,6 @@
       border: 2px solid #b38e07;
       border-radius: 10px;
     }
-
     .button-container {
       display: flex;
       flex-wrap: wrap;
@@ -40,106 +36,114 @@
       gap: 15px;
       margin-bottom: 30px;
     }
-
     button {
       padding: 12px 20px;
-      font-size: 16px;
       background-color: #b38e07;
       color: white;
       border: none;
       border-radius: 8px;
       cursor: pointer;
-      transition: background-color 0.3s ease;
     }
-
     button:hover {
       background-color: #d4aa11;
-    }
-
-    @media (max-width: 600px) {
-      h2 {
-        font-size: 1.2rem;
-      }
-
-      #map {
-        height: 300px;
-      }
-
-      button {
-        width: 90%;
-        font-size: 14px;
-      }
     }
   </style>
 </head>
 <body>
-  <h2>Live User Location</h2>
-  <div id="map"></div>
 
-  <div class="button-container">
-    <button onclick="callNumber('122')">Call 122</button>
-    <button id="callUser">Call the User</button>
-    <button id="callAdmin" onclick="callNumber('+201069885999')">Call Admin</button>
-  </div>
+<h2>Live User Location Tracker</h2>
+<div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <script>
-    let map;
-    let marker;
+<div class="button-container">
+  <button onclick="callNumber('122')">Call 122</button>
+  <button id="callUser">Call User</button>
+  <button id="callAdmin" onclick="callNumber('+201069885999')">Call Admin</button>
+</div>
 
-    // Extract base64-encoded user_id from query
-    const query = new URLSearchParams(window.location.search);
-    const userId = query.get('user_id');
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-    if (!userId) {
-      alert("Missing user ID.");
+<script>
+  let map;
+  let marker;
+
+  // Get userId from query params
+  const query = new URLSearchParams(window.location.search);
+  const userId = query.get('user_id');
+
+  if (!userId) {
+    alert("Missing user ID in URL.");
+  }
+
+  function initMap() {
+    map = L.map('map').setView([30.0444, 31.2357], 13); // Default to Cairo
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+  }
+
+  function callNumber(number) {
+    window.location.href = `tel:${number}`;
+  }
+
+  // Initialize Socket.IO client
+  const socket = io("http://localhost:3000", {
+    transports: ["websocket"],
+    reconnectionAttempts: 5,
+    reconnectionDelay: 1000,
+  });
+
+  // alert on failed connection
+  socket.on("connect_error", (error) => {
+    alert("Failed to connect to the server.");
+    console.error("Connection error:", error);
+  });
+
+  socket.on("connect", () => {
+    console.log("Connected to socket server.");
+    socket.emit("joinAnalytics");
+  });
+
+  socket.on("connect_error", (error) => {
+    console.error("Connection error:", error);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("Disconnected from socket server.");
+  });
+
+  // Listen for real-time location data
+  socket.on("analyticsLocation", (data) => {
+    console.log("Received data:", data);
+
+    if (data.userId !== userId) return; // Only update if userId matches the current tracked user
+
+    const { lat, lng, user_phone, admin_phone } = data;
+
+    if (marker) {
+      map.removeLayer(marker);
     }
 
-    function initMap() {
-      map = L.map('map').setView([30.0444, 31.2357], 13); // Default to Cairo
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 18,
-        attribution: '© OpenStreetMap'
-      }).addTo(map);
+    map.setView([lat, lng], 15);
+    marker = L.marker([lat, lng]).addTo(map)
+      .bindPopup("📍 Live User Location").openPopup();
+
+    // Update call buttons with user/admin phone numbers
+    const callUserBtn = document.getElementById('callUser');
+    const callAdminBtn = document.getElementById('callAdmin');
+
+    if (user_phone) {
+      callUserBtn.onclick = () => callNumber(user_phone);
     }
-
-    function callNumber(number) {
-      window.location.href = `tel:${number}`;
+    if (admin_phone) {
+      callAdminBtn.onclick = () => callNumber(admin_phone);
     }
+  });
 
-    async function fetchLocation(userId) {
-      try {
-        const res = await fetch(`http://localhost:8000/get-location?user_id=${userId}`);
-        if (!res.ok) throw new Error("Location not found");
+  window.onload = () => {
+    initMap();
+  };
+</script>
 
-        const data = await res.json();
-        console.log("Fetched location:", data);
-
-        const { lat, lon, user_phone, admin_phone } = data;
-
-        if (marker) map.removeLayer(marker);
-
-        map.setView([lat, lon], 15);
-        marker = L.marker([lat, lon]).addTo(map)
-          .bindPopup("📍 User Location").openPopup();
-
-        // Set up call buttons
-        const callUserBtn = document.getElementById('callUser');
-        const callAdminBtn = document.getElementById('callAdmin');
-
-        callUserBtn.onclick = () => callNumber(user_phone);
-        callAdminBtn.onclick = () => callNumber(admin_phone);
-
-      } catch (err) {
-        console.error("Error fetching location:", err);
-        alert("Failed to load user location.");
-      }
-    }
-
-    window.onload = () => {
-      initMap();
-      if (userId) fetchLocation(userId);
-    };
-  </script>
 </body>
 </html>

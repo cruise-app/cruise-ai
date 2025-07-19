@@ -71,7 +71,8 @@
   const userId = query.get('user_id');
 
   if (!userId) {
-    alert("Missing user ID in URL.");
+    //alert("Missing user ID in URL.");
+    console.error("Missing user ID in URL.");
   }
 
   function initMap() {
@@ -95,7 +96,7 @@
 
   // alert on failed connection
   socket.on("connect_error", (error) => {
-    alert("Failed to connect to the server.");
+    //alert("Failed to connect to the server.");
     console.error("Connection error:", error);
   });
 

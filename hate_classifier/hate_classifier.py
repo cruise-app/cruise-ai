@@ -67,7 +67,7 @@ async def send_alert(text: str, trip_id: str, user_id: str):
             "parameters": {
                 "name": "Shahd",
                 "transcript": get_display(arabic_reshaper.reshape(text)),
-                "map_link": f"https://ali26m.github.io/security-project/",
+                "map_link": f"https://cruise-app.github.io/cruise-ai/",
             }
         })
         print("NotificationAPI response:", response)
